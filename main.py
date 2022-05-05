@@ -1,6 +1,78 @@
 import pygame
 from sys import exit
-from random import randint
+from random import randint,choice
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.player_index = 0
+        player_walk_1 = pygame.image.load('graphics/player/player_walk_1.png').convert_alpha()
+        player_walk_2 = pygame.image.load('graphics/player/player_walk_2.png').convert_alpha()
+        self.player_walk = [player_walk_1, player_walk_2]
+        self.player_jump = pygame.image.load('graphics/player/jump.png').convert_alpha()
+
+        #default surface
+        self.image = self.player_walk[self.player_index]
+        self.rect= self.image.get_rect(midbottom = (200,300))
+        self.gravity = 0
+
+    def player_input(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE] and self.rect.bottom >= 300:
+                self.gravity = -20
+
+    def apply_gravity(self):
+        self.gravity += 1
+        self.rect.y += self.gravity
+
+        if self.rect.bottom >= 300:
+            self.rect.bottom = 300
+
+    def animation_state(self):
+        if self.rect.bottom < 300:
+            self.image = self.player_jump
+        else: 
+            self.player_index += 0.1
+            if self.player_index >= len(self.player_walk): self.player_index = 0
+            self.image = self.player_walk[int(self.player_index)]
+
+    def update(self): 
+        self.player_input()
+        self.apply_gravity()
+        self.animation_state()
+
+class Obstacle(pygame.sprite.Sprite):
+    def __init__(self,type):
+        super().__init__()
+
+        if type == 'fly':
+            fly_frame_1 = pygame.image.load('graphics/fly/fly1.png').convert_alpha()
+            fly_frame_2 = pygame.image.load('graphics/fly/fly2.png').convert_alpha()
+            self.frames = [fly_frame_1, fly_frame_2]
+            y_position = 210
+        else: 
+            snail_frame_1 = pygame.image.load('graphics/snail/snail1.png').convert_alpha() #convert alpha maintains the background transparency of a .png
+            snail_frame_2 = pygame.image.load('graphics/snail/snail2.png').convert_alpha() 
+            self.frames = [snail_frame_1, snail_frame_2]
+            y_position = 300
+
+        self.animation_index = 0
+        self.image = self.frames[self.animation_index]
+        self.rect = self.image.get_rect(midbottom = (randint(900,1100), y_position))
+
+    def animation_state(self):
+        self.animation_index += 0.1
+        if self.animation_index >= len(self.frames): self.animation_index = 0
+        self.image = self.frames[int(self.animation_index)]
+
+    def update(self):
+        self.animation_state()
+        self.rect.x -= 6
+        self.destroy()
+
+    def destroy(self):  
+        self.rect.x <= -100
+        self.kill()  
 
 #Functions
 def display_score():
@@ -32,6 +104,12 @@ def collisions(player, obstacles):
         for obstacle_rect in obstacles: 
                 if player.colliderect(obstacle_rect): return False
     return True
+
+def collision_sprite():
+    if pygame.sprite.spritecollide(player.sprite, obstacle_group, True):
+        obstacle_group.empty()
+        return False
+    else: return True
 
 def player_animation():
     global player_surface, player_index
@@ -68,6 +146,14 @@ start_time = 0
 #plain color test game surface - different than the display surface that is the game window
 #test_surface = pygame.Surface((100,200))
 #test_surface.fill('coral4')
+
+#Groups
+
+#create the player class' Single Group to put it in, and then add the player class to the group
+player = pygame.sprite.GroupSingle()
+player.add(Player())
+
+obstacle_group = pygame.sprite.Group()
 
 sky_surface = pygame.image.load('graphics/Sky.png').convert() #convert changes the .png into a more python-friendly image format
 ground_surface = pygame.image.load('graphics/ground.png').convert()
@@ -149,16 +235,19 @@ while True:
                         print('spacebar pressed')
 
             if event.type == obstacle_timer:
-                if randint(0,2): #simple random number thats either 0 (true) or false (1)
-                    obstacle_rect_list.append(snail_surface.get_rect(bottomright = (randint(900,1100), 300)))
-                else:
-                    obstacle_rect_list.append(fly_surface.get_rect(bottomright = (randint(900,1100), 210)))   
+                obstacle_group.add(Obstacle(choice(['fly','snail','snail','snail'])))
+
+
+                #if randint(0,2): #simple random number thats either 0 (true) or false (1)
+                #    obstacle_rect_list.append(snail_surface.get_rect(bottomright = (randint(900,1100), 300)))
+                #else:
+                #    obstacle_rect_list.append(fly_surface.get_rect(bottomright = (randint(900,1100), 210)))   
 
             if event.type == snail_animation_timer:
                 if snail_frame_index == 0: snail_frame_index = 1
                 else: snail_frame_index = 0  
                 snail_surface = snail_frames[snail_frame_index]
-                
+
             if event.type == fly_animation_timer: 
                 if fly_frame_index == 0: fly_frame_index = 1
                 else: fly_frame_index = 0
@@ -187,18 +276,25 @@ while True:
         display_score()
 
         #Player
-        player_gravity += 1
-        player_rectangle.y += player_gravity
+        #player_gravity += 1
+        #player_rectangle.y += player_gravity
         #player_rectangle.left += 1 #you don't move the surface, you move the rectangle that contains the surface in pygame
-        if player_rectangle.bottom >= 300:player_rectangle.bottom = 300 # everytime the player hits the top of the ground at 300, we get the bottom of the player and set it on top of the ground
-        player_animation()     
-        screen.blit(player_surface, player_rectangle) #take the player surface and put it in the position of the rectangle
+        #if player_rectangle.bottom >= 300:player_rectangle.bottom = 300 # everytime the player hits the top of the ground at 300, we get the bottom of the player and set it on top of the ground
+        #player_animation()     
+        #screen.blit(player_surface, player_rectangle) #take the player surface and put it in the position of the rectangle
+        player.draw(screen)
+        player.update()
 
+        obstacle_group.draw(screen)
+        obstacle_group.update()
+
+
+        game_active = collision_sprite
         #Obstacle movement
-        obstacle_rect_list = obstacle_movement(obstacle_rect_list)
+        #obstacle_rect_list = obstacle_movement(obstacle_rect_list)
 
         #Collisions
-        game_active = collisions(player_rectangle, obstacle_rect_list)
+        #game_active = collisions(player_rectangle, obstacle_rect_list)
 
         #every time the game loop runs it will decrement the snail's position and make it move to the left 
         #snail_x_position -= 2
